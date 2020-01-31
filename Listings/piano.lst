@@ -1,0 +1,325 @@
+C51 COMPILER V9.54   PIANO                                                                 06/24/2019 19:14:30 PAGE 1   
+
+
+C51 COMPILER V9.54, COMPILATION OF MODULE PIANO
+OBJECT MODULE PLACED IN .\Objects\piano.obj
+COMPILER INVOKED BY: D:\keil 5\C51\BIN\C51.EXE piano.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\pian
+                    -o.lst) TABS(2) OBJECT(.\Objects\piano.obj)
+
+line level    source
+
+   1          #include <reg52.h>
+   2          #include <math.h>
+   3          
+   4          #define GPIO_KEY P2
+   5          #define time 1
+   6          #define uchar unsigned char
+   7          #define uint unsigned int
+   8          
+   9          void judge();
+  10          void keyscan();
+  11          void rgbplay(uchar a);
+  12            
+  13          sbit buzzer = P1^7;
+  14          sbit red = P3^5;
+  15          sbit green = P3^6;
+  16          sbit blue = P3^7;
+  17          char KeyValue=-1, //键值
+  18              function = 0,   //当前模式
+  19              function_flag = 0,  //是否已改变音调
+  20              play_flag = 0,  //是否播放音乐
+  21              play_list = 0,  //播放的第几首歌
+  22              tune = 0,  //音调
+  23              delay_time = 0;  //节拍次数
+  24          
+  25          
+  26          uint tune_index = 0;//第几个音调(用于播放歌曲)
+  27          
+  28          /************************************音乐*******************************************/
+  29          uchar code music1[] = {
+  30          1,2,3,2,2,1,6,1,1,1,2,1,5,1,2,5,2,3,1,3,1,6,2,1,5,2,1,3,2,1,5,2,1,2,2,4,2,2,3,3,2,1,7,1,2,6,1,2,5,1,3,6,1,
+             -1,1,2,2,2,2,2,3,1,2,1,2,2,6,1,1,5,1,1,6,1,1,1,2,1,5,1,4,3,2,3,5,2,1,7,1,2,2,2,2,6,1,1,1,2,1,5,1,4,3,1,1,5,1,2,3,1,2,5,1,
+             -1,6,1,1,7,1,1,2,2,1,6,1,4,5,1,1,6,1,1,1,2,3,2,2,1,5,2,2,3,2,2,2,2,2,3,2,1,2,2,1,1,2,2,6,1,1,5,1,1,3,1,2,3,1,4,1,2,4,6,1,
+             -3,1,2,1,6,1,1,5,1,1,3,1,1,5,1,1,6,1,1,1,2,1,5,1,4,0,0,0
+  31          };//《梁祝》，音阶、音调、节拍
+  32          uchar code music2[] = {
+  33            6,2,3,5,2,1,3,2,2,5,2,2,6,2,1,6,2,2,5,2,1,3,2,4,6,1,3,1,2,1,2,2,2,5,2,1,3,2,1,2,2,4,
+  34          6,2,3,2,3,1,2,3,2,1,3,1,7,2,1,6,2,3,5,2,1,3,2,4,2,2,1,5,2,1,5,2,1,3,2,1,2,2,1,3,2,1,1,2,1,7,1,1,6,1,4,
+  35          1,2,3,6,1,1,6,2,1,1,2,2,2,2,2,5,
+  36          2,1,3,2,1,2,2,4,5,2,3,3,2,1,3,2,
+  37          2,5,2,2,6,2,4,2,3,3,2,3,1,1,3,2,
+  38          2,3,2,6,2,1,1,3,1,5,2,1,6,2,1,3,
+  39          2,4,2,2,1,5,2,1,5,2,1,3,2,1,2,2,
+  40          1,3,2,1,1,2,1,7,1,1,6,1,4,
+  41          0, 0, 0};//《青花瓷》
+  42          code unsigned char music3[]={
+  43          6, 2, 3, 5, 2, 1, 3, 2, 2, 5, 2, 2, 1, 3, 2, 6, 2, 1, 5, 2, 1,
+  44          6, 2, 4, 3, 2, 2, 5, 2, 1, 6, 2, 1, 5, 2, 2, 3, 2, 2, 1, 2, 1,
+  45          6, 1, 1, 5, 2, 1, 3, 2, 1, 2, 2, 4, 2, 2, 3, 3, 2, 1, 5, 2, 2,
+  46          5, 2, 1, 6, 2, 1, 3, 2, 2, 2, 2, 2, 1, 2, 4, 5, 2, 3, 3, 2, 1,
+  47          2, 2, 1, 1, 2, 1, 6, 1, 1, 1, 2, 1, 5, 1, 6, 0, 0, 0};  //《世上只有妈妈好》
+  48          //code unsigned char music3[]={
+  49          //         5,1,1, 5,1,1, 6,1,2, 5,1,2, 1,2,2, 7,1,4,
+  50          //         5,1,1, 5,1,1, 6,1,2, 5,1,2, 2,2,2, 1,2,4,
+  51          //         5,1,1, 5,1,1, 5,2,2, 3,2,2, 1,2,2, 7,1,2, 6,1,2,
+C51 COMPILER V9.54   PIANO                                                                 06/24/2019 19:14:30 PAGE 2   
+
+  52          //         4,2,1, 4,2,1, 3,2,2, 1,2,2, 2,2,2, 1,2,4, 0, 0, 0};  //《生日快乐歌》
+  53          
+  54          uchar code ledyang[] = {
+  55                      0xC0, //"0"
+  56                      0xF9, //"1"
+  57                      0xA4, //"2"
+  58                      0xB0, //"3"
+  59                      0x99, //"4"
+  60                      0x92, //"5"
+  61                      0x82, //"6"
+  62                      0xF8, //"7"
+  63                      0x80, //"8"
+  64                      0x90, //"9"
+  65                      0x88, //"A"
+  66                      0x83, //"B"
+  67                      0xC6, //"C"
+  68                      0xA1, //"D"
+  69                      0x86, //"E"
+  70                      0x8E, //"F"
+  71                      0x89, //"H"
+  72                      0xC7, //"L"
+  73                      0xC8, //"n"
+  74                      0xC1, //"u"
+  75                      0x8C, //"P"
+  76                      0xA3, //"o"
+  77                      0xBF, //"-"
+  78                                   };//共阴极数码管显示
+  79          
+  80          uint code music_code[] = {63628,63835,64021,64103,64260,64400,64524,
+  81                                    64580,64684,64777,64820,64898,64968,65030,
+  82                                    65058,65110,65157,65178,65217,65252,65283};
+  83          //对应按键的音调代码
+  84          
+  85          void delay_ms(uint x)//毫秒延时函数
+  86          {
+  87   1        uint y,z;
+  88   1        for(z=x;z>0;z--)
+  89   1        {
+  90   2          for(y=110;y>0;y--);
+  91   2          {}
+  92   2      
+  93   2        }
+  94   1        TR1 = 0;
+  95   1      }
+  96          
+  97          /*********************************延长时间，t个半拍******************************/
+  98          void tune_delay(unsigned char t) //延时程序，控制发音的时间长度
+  99          {
+ 100   1      unsigned char t1;
+ 101   1      unsigned long t2;
+ 102   1      for(t1 = 0; t1 < t; t1++) //双重循环, 共延时t个半拍
+ 103   1        for(t2 = 0; t2 < 8000; t2++)
+ 104   1        {
+ 105   2          keyscan();
+ 106   2          if(play_flag==0)
+ 107   2              break;
+ 108   2        }//延时期间, 可进入T1中断去发音
+ 109   1      TR1 = 0; //关闭T1, 停止发音
+ 110   1      }
+ 111          
+ 112          /************************************定时器**************************************/
+ 113          void init()//定时器初始化
+C51 COMPILER V9.54   PIANO                                                                 06/24/2019 19:14:30 PAGE 3   
+
+ 114          {
+ 115   1        TMOD = 0x11;//选择工作方式1
+ 116   1        EA = 1;//开启总中断
+ 117   1        ET0 = 1;
+ 118   1        ET1 = 1;//开启定时器T1中断
+ 119   1      }
+ 120          
+ 121          void beep()//定时器发声
+ 122          {
+ 123   1        buzzer = 1;
+ 124   1        TH1 = music_code[tune]/256;
+ 125   1        TL1 = music_code[tune]%256;
+ 126   1        TR1 = 1;//开启定时器T1
+ 127   1      }
+ 128          
+ 129          void T0_time() interrupt 1
+ 130          {
+ 131   1        TH0=(65536-50000)/256;  //定时50ms
+ 132   1        TL0=(65536-50000)%256;
+ 133   1      }
+ 134          
+ 135          void T1_time() interrupt 3//产生对应频率的方波,用于蜂鸣器发声
+ 136          {
+ 137   1        buzzer = !buzzer;
+ 138   1        TH1 = music_code[tune]/256;
+ 139   1        TL1 = music_code[tune]%256;
+ 140   1      }
+ 141          /**************************************************音乐播放函数*************************************
+             -***/
+ 142          void playMusic()
+ 143          {
+ 144   1        while(play_flag==1)
+ 145   1        {
+ 146   2          switch(play_list)
+ 147   2          {
+ 148   3            case 0:tune = music1[tune_index*3]+(music1[tune_index*3+1]-1)*7-1; delay_time = music1[3*tune_index+2];
+             -break;
+ 149   3            case 1:tune = music2[tune_index*3]+(music2[tune_index*3+1]-1)*7-1; delay_time = music2[3*tune_index+2];
+             -break;
+ 150   3            case 2:tune = music3[tune_index*3]+(music2[tune_index*3+1]-1)*7-1; delay_time = music3[3*tune_index+2];
+             -break;
+ 151   3          }
+ 152   2          if(play_list==0)
+ 153   2            P0 = ledyang[1];
+ 154   2          if(play_list==1)
+ 155   2            P0 = 0xB9;   //第二首歌
+ 156   2          if(play_list==2)
+ 157   2            P0 = 0xF1;  //第一首歌
+ 158   2          tune_index++;
+ 159   2          beep();
+ 160   2          tune_delay(delay_time);
+ 161   2          rgbplay(tune%7);
+ 162   2          if(play_list==0&&music1[tune_index*3]==0)
+ 163   2            tune_index = 0;
+ 164   2          if(play_list==1&&music2[tune_index*3]==0)
+ 165   2            tune_index = 0;
+ 166   2          if(play_list==2&&music3[tune_index*3]==0)
+ 167   2            tune_index = 0; 
+ 168   2        }
+ 169   1      }
+ 170          
+ 171            
+C51 COMPILER V9.54   PIANO                                                                 06/24/2019 19:14:30 PAGE 4   
+
+ 172          void keyscan()
+ 173          {
+ 174   1        GPIO_KEY = 0x0f;
+ 175   1        if(GPIO_KEY!=0x0f)//读取按键是否按下
+ 176   1        {
+ 177   2          delay_ms(10);//延时10ms进行消抖
+ 178   2          if(GPIO_KEY!=0x0f)//再次检测键盘是否按下
+ 179   2          {
+ 180   3            //测试列
+ 181   3            GPIO_KEY = 0X0F;
+ 182   3            switch(GPIO_KEY)
+ 183   3            {
+ 184   4              case(0X07): KeyValue = 0;break;
+ 185   4              case(0X0b): KeyValue = 1;break;
+ 186   4              case(0X0d): KeyValue = 2;break;
+ 187   4              case(0X0e): KeyValue = 3;break;
+ 188   4            }
+ 189   3            //测试行
+ 190   3            GPIO_KEY = 0XF0;
+ 191   3            switch(GPIO_KEY)
+ 192   3            {
+ 193   4              case(0X70): KeyValue = KeyValue;break;
+ 194   4              case(0Xb0): KeyValue = KeyValue+4;break;
+ 195   4              case(0Xd0): KeyValue = KeyValue+8;break;
+ 196   4              case(0Xe0): KeyValue = KeyValue+12;break;
+ 197   4            }
+ 198   3            judge();
+ 199   3            switch(function_flag)
+ 200   3            {
+ 201   4              case 0:tune = KeyValue;if(KeyValue>13) tune = 0;break;
+ 202   4              case 1:tune = KeyValue+7;if(KeyValue>13) tune = 0;break;
+ 203   4            }
+ 204   3            if(function!=1)
+ 205   3            {
+ 206   4              beep();
+ 207   4              rgbplay(7);  //RGB 熄灭
+ 208   4            }
+ 209   3            //按键松手检测
+ 210   3            while(GPIO_KEY!=0xf0);
+ 211   3            if(function!=1)
+ 212   3              TR1 = 0;
+ 213   3          }
+ 214   2        }
+ 215   1      }
+ 216          
+ 217          //  RGB显示函数
+ 218          void rgbplay(uchar a)
+ 219          {
+ 220   1        switch(a)
+ 221   1        {
+ 222   2          case 0:
+ 223   2            red = 0;green = 1;blue = 1;break;
+ 224   2          case 1:
+ 225   2            red = 0;green = 0;blue = 1;break;
+ 226   2          case 2:
+ 227   2            red = 1;green = 0;blue = 1;break;
+ 228   2          case 3:
+ 229   2            red = 1;green = 0;blue = 0;break;
+ 230   2          case 4:
+ 231   2            red = 1;green = 1;blue = 0;break;
+ 232   2          case 5:
+ 233   2            red = 0;green = 1;blue = 0;break;
+C51 COMPILER V9.54   PIANO                                                                 06/24/2019 19:14:30 PAGE 5   
+
+ 234   2          case 6:
+ 235   2            red = 0;green = 0;blue = 0;break;
+ 236   2          case 7:
+ 237   2            red = 1;green = 1;blue = 1;break;
+ 238   2        }
+ 239   1      }
+ 240          
+ 241          //  当前模式判断
+ 242          void judge()
+ 243          {
+ 244   1          if(KeyValue==15)
+ 245   1          {
+ 246   2            function = (function+1)%3;
+ 247   2            function_flag = 0;//音调恢复
+ 248   2            play_flag = 0;
+ 249   2            tune_index = 0;
+ 250   2          }
+ 251   1          else
+ 252   1          {
+ 253   2            if(function==0&&KeyValue==14)
+ 254   2              function_flag = (function_flag+1)%2;//音调升高
+ 255   2            if(function==1)
+ 256   2            {
+ 257   3              switch(KeyValue)
+ 258   3              {
+ 259   4                case 12:play_list = (play_list-1);if(play_list<0) play_list=2;break;
+ 260   4                case 13:play_list = (play_list+1)%3;tune_index = 0;break;  //选歌
+ 261   4                case 14:play_flag = !play_flag;break;  //暂停、播放
+ 262   4              } 
+ 263   3            }
+ 264   2          }
+ 265   1      }
+ 266          void main()
+ 267          {
+ 268   1        init();
+ 269   1        while(1)
+ 270   1        {
+ 271   2          keyscan();
+ 272   2      //    rgbplay(KeyValue%7);
+ 273   2          P0=ledyang[function];
+ 274   2          if(function==1)
+ 275   2          {
+ 276   3            if(play_list==1)
+ 277   3              P0 = 0xB9;
+ 278   3            if(play_list==2)
+ 279   3              P0 = 0xF1;
+ 280   3          }
+ 281   2          if(play_flag==1)
+ 282   2            playMusic();
+ 283   2        }
+ 284   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   1095    ----
+   CONSTANT SIZE    =    557    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =      9       6
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+C51 COMPILER V9.54   PIANO                                                                 06/24/2019 19:14:30 PAGE 6   
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

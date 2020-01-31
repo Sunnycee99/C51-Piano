@@ -1,0 +1,4 @@
+".\Objects\STARTUP.obj",
+".\Objects\piano.obj" 
+TO ".\Objects\piano" 
+PRINT(".\Listings\piano.m51") RAMSIZE(256) 
